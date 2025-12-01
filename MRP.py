@@ -23,7 +23,7 @@ st.title("🐄 Dairy Excellence Initiative")
 st.markdown("**Digital Milk Record Profile**")
 
 # ==========================================
-# SECTION 1: FARMER & COW PROFILE (All 22 Questions)
+# SECTION 1: FARMER & COW PROFILE
 # ==========================================
 with st.container(border=True):
     st.markdown('<p class="section-title">1. General Profile</p>', unsafe_allow_html=True)
@@ -42,23 +42,20 @@ with st.container(border=True):
     with c7: num_calvings = st.number_input("No. of Calvings", min_value=0, step=1)
     with c8: calving_date = st.date_input("Date of Calving", value=date.today())
 
-    # --- Row 3: Origins & Feeding Type ---
+    # --- Row 3: Origins & Feeding Method ---
     st.markdown("---")
     col_orig, col_method = st.columns(2)
     with col_orig:
-        # Paper form asks: Purchased (Y/N) OR In Farm Born (Y/N). This is a radio choice.
         origin_choice = st.radio("Cow Source:", ["In Farm Born", "Purchased"], horizontal=True)
-        # Convert to boolean for clean data
         is_purchased = "Yes" if origin_choice == "Purchased" else "No"
         is_farm_born = "Yes" if origin_choice == "In Farm Born" else "No"
         
     with col_method:
-        # Grazing / Stall / Both
         grazing_choice = st.radio("Feeding Method:", ["Grazing", "Stall Feeding", "Both"], horizontal=True)
 
-    # --- Row 4: Feed Specifics (Strict Checkboxes) ---
+    # --- Row 4: Feed Composition (Brand Name & Qty) ---
     st.markdown("---")
-    st.write("**Feed Composition & Quantity**")
+    st.markdown("**Feed Composition & Quantity**")
     
     f1, f2, f3, f4 = st.columns(4)
     with f1: 
@@ -66,31 +63,43 @@ with st.container(border=True):
     with f2: 
         own_feed_yn = st.checkbox("Own Feed")
     with f3:
-        # Only relevant if feeding is happening
         qty_fed = st.number_input("Qty fed (Kgs)", min_value=0.0, step=0.5)
     with f4:
-        brand_name = st.text_input("Brand Name", placeholder="e.g. Rich")
+        # BRAND NAME is always visible now to ensure it's not missed
+        brand_name = st.text_input("Brand Name", placeholder="e.g. Rich / Heritage")
 
-    # --- Row 5: Supplements & Fodder (All 7 checkboxes from form) ---
-    st.write("**Supplements & Fodder**")
-    s1, s2, s3, s4, s5, s6, s7 = st.columns(7)
-    with s1: green_fodder_yn = st.checkbox("Green Fodder")
-    with s2: dry_fodder_yn = st.checkbox("Dry Fodder")
-    with s3: water_247_yn = st.checkbox("24/7 Water")
-    with s4: silage_yn = st.checkbox("Silage")
-    with s5: calcium_yn = st.checkbox("Calcium")
-    with s6: mineral_mix_yn = st.checkbox("Mineral Mix")
-    with s7: ummb_yn = st.checkbox("UMMB")
+    # --- Row 5: Fodder Names (Green & Dry) ---
+    st.markdown("**Fodder Details**")
+    fod1, fod2, fod3, fod4 = st.columns(4)
+    
+    with fod1:
+        green_fodder_yn = st.checkbox("Green Fodder (Y/N)")
+    with fod2:
+        # Input for Green Fodder Name (Enable only if checked)
+        green_fodder_name = st.text_input("Green Fodder Name", disabled=not green_fodder_yn, placeholder="e.g. Napier")
+        
+    with fod3:
+        dry_fodder_yn = st.checkbox("Dry Fodder (Y/N)")
+    with fod4:
+        # Input for Dry Fodder Name (Enable only if checked)
+        dry_fodder_name = st.text_input("Dry Fodder Name", disabled=not dry_fodder_yn, placeholder="e.g. Paddy")
+
+    # --- Row 6: Other Supplements ---
+    st.markdown("**Other Supplements**")
+    s1, s2, s3, s4, s5 = st.columns(5)
+    with s1: water_247_yn = st.checkbox("24/7 Water")
+    with s2: silage_yn = st.checkbox("Silage")
+    with s3: calcium_yn = st.checkbox("Calcium")
+    with s4: mineral_mix_yn = st.checkbox("Mineral Mix")
+    with s5: ummb_yn = st.checkbox("UMMB")
 
 # ==========================================
 # SECTION 2: DAILY MILK RECORD (Editable)
 # ==========================================
 st.markdown('<p class="section-title">2. Daily Milk Record Log</p>', unsafe_allow_html=True)
 
-# Toggle for Auto-Calculation
 auto_calc = st.checkbox("Auto-calculate LPD?", value=True, key="autocalc")
 
-# Initialize Data
 if 'milk_data' not in st.session_state:
     st.session_state.milk_data = pd.DataFrame(
         {
@@ -105,7 +114,6 @@ if 'milk_data' not in st.session_state:
         }
     )
 
-# Configure Columns
 column_config = {
     "Date": st.column_config.DateColumn("Date", default=date.today(), format="DD-MM-YYYY"),
     "Morning (Ltrs)": st.column_config.NumberColumn("Morning (Ltrs)", min_value=0, step=0.1, format="%.1f"),
@@ -117,7 +125,6 @@ column_config = {
     "Visitor Sign": st.column_config.TextColumn("Visitor Sign"),
 }
 
-# Editor
 edited_df = st.data_editor(
     st.session_state.milk_data,
     column_config=column_config,
@@ -127,7 +134,6 @@ edited_df = st.data_editor(
     key="editor"
 )
 
-# Calculation Logic
 if not edited_df.equals(st.session_state.milk_data):
     numeric_cols = ["Morning (Ltrs)", "Evening (Ltrs)", "Home Cons. (Ltrs)", "Calf Cons. (Ltrs)", "Milk Poured (LPD)"]
     edited_df[numeric_cols] = edited_df[numeric_cols].fillna(0.0)
@@ -141,13 +147,13 @@ if not edited_df.equals(st.session_state.milk_data):
     st.rerun()
 
 # ==========================================
-# SUBMIT & DOWNLOAD (CLEAN FORMAT LOGIC)
+# SUBMIT & DOWNLOAD
 # ==========================================
 st.write("###")
 if st.button("✅ Generate Clean Record", type="primary"):
     
     if not edited_df.empty:
-        # 1. Create a Dictionary of the Profile Data (The "Questions")
+        # Create dictionary of ALL profile data
         profile_data = {
             "Farmer Name": farmer_name,
             "Village Name": village_name,
@@ -162,10 +168,12 @@ if st.button("✅ Generate Clean Record", type="primary"):
             "Cattle Feed?": "Yes" if cattle_feed_yn else "No",
             "Own Feed?": "Yes" if own_feed_yn else "No",
             "Qty Fed (Kgs)": qty_fed,
-            "Brand Name": brand_name,
+            "Brand Name": brand_name,         # <--- Included
             "Grazing Method": grazing_choice,
             "Green Fodder?": "Yes" if green_fodder_yn else "No",
+            "Green Fodder Name": green_fodder_name if green_fodder_yn else "", # <--- Included
             "Dry Fodder?": "Yes" if dry_fodder_yn else "No",
+            "Dry Fodder Name": dry_fodder_name if dry_fodder_yn else "",       # <--- Included
             "24/7 Water?": "Yes" if water_247_yn else "No",
             "Silage?": "Yes" if silage_yn else "No",
             "Calcium?": "Yes" if calcium_yn else "No",
@@ -173,15 +181,11 @@ if st.button("✅ Generate Clean Record", type="primary"):
             "UMMB?": "Yes" if ummb_yn else "No"
         }
 
-        # 2. Merge Profile Data into every row of the Table Data
-        # We create a new dataframe for export
+        # Merge Profile Data into Table Data
         export_df = edited_df.copy()
-        
-        # Add profile columns to the left side
         for col_name, value in reversed(profile_data.items()):
             export_df.insert(0, col_name, value)
             
-        # 3. Create the clean CSV
         csv_data = export_df.to_csv(index=False)
         filename = f"MilkRecord_{farmer_name}_{date.today()}.csv"
 

@@ -66,20 +66,25 @@ with st.container(border=True):
 # SECTION 2: DAILY MILK RECORD (Editable Grid)
 # ==========================================
 st.markdown('<p class="section-header">2. Daily Milk Record Log</p>', unsafe_allow_html=True)
-st.info("💡 Tip: You can edit the table below directly! Click on the last empty row to add a new entry.")
+st.info("💡 Tip: Click on the last empty row to add a new entry.")
 
-# 1. Setup the structure of our Dataframe
+# --- FIXED INITIALIZATION SECTION ---
 if 'milk_data' not in st.session_state:
-    # Create an empty dataframe with specific columns and types
+    # We explicitly define the data types to prevent the API Exception
     st.session_state.milk_data = pd.DataFrame(
-        columns=[
-            "Date", "Morning (Ltrs)", "Evening (Ltrs)", 
-            "Home Cons. (Ltrs)", "Calf Cons. (Ltrs)", 
-            "Milk Poured (LPD)", "Remarks", "Visitor Sign"
-        ]
+        {
+            "Date": pd.Series(dtype='datetime64[ns]'),
+            "Morning (Ltrs)": pd.Series(dtype='float'),
+            "Evening (Ltrs)": pd.Series(dtype='float'),
+            "Home Cons. (Ltrs)": pd.Series(dtype='float'),
+            "Calf Cons. (Ltrs)": pd.Series(dtype='float'),
+            "Milk Poured (LPD)": pd.Series(dtype='float'),
+            "Remarks": pd.Series(dtype='str'),
+            "Visitor Sign": pd.Series(dtype='str'),
+        }
     )
 
-# 2. Configure column settings for the editor (makes it user-friendly)
+# 2. Configure column settings
 column_config = {
     "Date": st.column_config.DateColumn("Date", default=date.today(), format="DD-MM-YYYY"),
     "Morning (Ltrs)": st.column_config.NumberColumn("Morning (Ltrs)", min_value=0, step=0.1, format="%.1f"),
@@ -92,7 +97,6 @@ column_config = {
 }
 
 # 3. Display the Data Editor
-# num_rows="dynamic" allows adding/deleting rows
 edited_df = st.data_editor(
     st.session_state.milk_data,
     column_config=column_config,
@@ -103,9 +107,8 @@ edited_df = st.data_editor(
 )
 
 # 4. Calculation Logic & Persistence
-# We recalculate "Milk Poured" every time the user changes a number
 if not edited_df.equals(st.session_state.milk_data):
-    # Ensure numeric columns are actually numbers (handle empty/NaN)
+    # Ensure numeric columns are actually numbers (fill empties with 0)
     numeric_cols = ["Morning (Ltrs)", "Evening (Ltrs)", "Home Cons. (Ltrs)", "Calf Cons. (Ltrs)"]
     edited_df[numeric_cols] = edited_df[numeric_cols].fillna(0.0)
     
@@ -114,9 +117,9 @@ if not edited_df.equals(st.session_state.milk_data):
     total_cons = edited_df["Home Cons. (Ltrs)"] + edited_df["Calf Cons. (Ltrs)"]
     edited_df["Milk Poured (LPD)"] = total_prod - total_cons
     
-    # Save back to session state so it remembers
+    # Save back to session state
     st.session_state.milk_data = edited_df
-    st.rerun() # Refresh to show the calculated numbers immediately
+    st.rerun()
 
 # ==========================================
 # DOWNLOAD SECTION
@@ -124,7 +127,6 @@ if not edited_df.equals(st.session_state.milk_data):
 st.markdown("### 📥 Download Options")
 
 if not edited_df.empty:
-    # Prepare textual header
     header_text = (
         f"DAIRY EXCELLENCE INITIATIVE - MILK RECORD PROFILE\n"
         f"Farmer: {farmer_name} | Village: {village_name} | ID: {producer_id}\n"

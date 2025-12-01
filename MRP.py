@@ -1,82 +1,96 @@
 import streamlit as st
 import pandas as pd
 from datetime import date
-import io
 
 # --- Page Configuration ---
 st.set_page_config(page_title="Milk Record Profile", page_icon="🐄", layout="wide")
 
-# --- Custom CSS for Form Look ---
+# --- CSS for Form Styling ---
 st.markdown("""
     <style>
-    .section-header {
+    .section-title {
         font-size: 1.2rem;
         font-weight: bold;
         color: #2c3e50;
         margin-top: 10px;
-        margin-bottom: 10px;
-        border-bottom: 2px solid #2c3e50;
-    }
-    div[data-testid="stMetricValue"] {
-        font-size: 1.2rem;
+        margin-bottom: 5px;
+        border-bottom: 1px solid #ccc;
     }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("🐄 Dairy Excellence Initiative")
-st.subheader("Milk Record Profile")
+st.markdown("**Digital Milk Record Profile**")
 
 # ==========================================
-# SECTION 1: FARMER & COW PROFILE (Static)
+# SECTION 1: FARMER & COW PROFILE (All 22 Questions)
 # ==========================================
 with st.container(border=True):
-    st.markdown('<p class="section-header">1. General Profile</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">1. General Profile</p>', unsafe_allow_html=True)
     
-    # Row 1: Farmer Details
+    # --- Row 1: Identification ---
     c1, c2, c3, c4 = st.columns(4)
     with c1: farmer_name = st.text_input("Farmer Name")
     with c2: village_name = st.text_input("Village Name")
     with c3: producer_id = st.text_input("Producer ID")
     with c4: hpc_code = st.text_input("HPC Code")
 
-    # Row 2: Cow Details
+    # --- Row 2: Cow Details ---
     c5, c6, c7, c8 = st.columns(4)
     with c5: cow_id = st.text_input("Cow Identity Number/Mark")
     with c6: breed = st.text_input("Breed")
     with c7: num_calvings = st.number_input("No. of Calvings", min_value=0, step=1)
     with c8: calving_date = st.date_input("Date of Calving", value=date.today())
 
-    # Row 3: Feed Details
+    # --- Row 3: Origins & Feeding Type ---
     st.markdown("---")
-    f1, f2, f3 = st.columns([1, 1, 2])
-    with f1: origin = st.radio("Cow Origin", ["In Farm Born", "Purchased"], horizontal=True)
-    with f2: feeding_method = st.radio("Feeding Method", ["Grazing", "Stall Feeding", "Both"], horizontal=True)
-    with f3: 
-        c_feed = st.checkbox("Cattle Feed")
-        qty_fed = st.number_input("Qty (Kgs)", value=0.0) if c_feed else 0.0
+    col_orig, col_method = st.columns(2)
+    with col_orig:
+        # Paper form asks: Purchased (Y/N) OR In Farm Born (Y/N). This is a radio choice.
+        origin_choice = st.radio("Cow Source:", ["In Farm Born", "Purchased"], horizontal=True)
+        # Convert to boolean for clean data
+        is_purchased = "Yes" if origin_choice == "Purchased" else "No"
+        is_farm_born = "Yes" if origin_choice == "In Farm Born" else "No"
+        
+    with col_method:
+        # Grazing / Stall / Both
+        grazing_choice = st.radio("Feeding Method:", ["Grazing", "Stall Feeding", "Both"], horizontal=True)
 
-    # Supplements Checkboxes
-    st.write(" **Supplements:**")
-    sup1, sup2, sup3, sup4, sup5, sup6 = st.columns(6)
-    with sup1: green = st.checkbox("Green Fodder")
-    with sup2: dry = st.checkbox("Dry Fodder")
-    with sup3: silage = st.checkbox("Silage")
-    with sup4: mineral = st.checkbox("Mineral Mix")
-    with sup5: ummb = st.checkbox("UMMB")
-    with sup6: water = st.checkbox("24/7 Water")
+    # --- Row 4: Feed Specifics (Strict Checkboxes) ---
+    st.markdown("---")
+    st.write("**Feed Composition & Quantity**")
+    
+    f1, f2, f3, f4 = st.columns(4)
+    with f1: 
+        cattle_feed_yn = st.checkbox("Cattle Feed")
+    with f2: 
+        own_feed_yn = st.checkbox("Own Feed")
+    with f3:
+        # Only relevant if feeding is happening
+        qty_fed = st.number_input("Qty fed (Kgs)", min_value=0.0, step=0.5)
+    with f4:
+        brand_name = st.text_input("Brand Name", placeholder="e.g. Rich")
+
+    # --- Row 5: Supplements & Fodder (All 7 checkboxes from form) ---
+    st.write("**Supplements & Fodder**")
+    s1, s2, s3, s4, s5, s6, s7 = st.columns(7)
+    with s1: green_fodder_yn = st.checkbox("Green Fodder")
+    with s2: dry_fodder_yn = st.checkbox("Dry Fodder")
+    with s3: water_247_yn = st.checkbox("24/7 Water")
+    with s4: silage_yn = st.checkbox("Silage")
+    with s5: calcium_yn = st.checkbox("Calcium")
+    with s6: mineral_mix_yn = st.checkbox("Mineral Mix")
+    with s7: ummb_yn = st.checkbox("UMMB")
 
 # ==========================================
-# SECTION 2: DAILY MILK RECORD (Editable Grid)
+# SECTION 2: DAILY MILK RECORD (Editable)
 # ==========================================
-st.markdown('<p class="section-header">2. Daily Milk Record Log</p>', unsafe_allow_html=True)
+st.markdown('<p class="section-title">2. Daily Milk Record Log</p>', unsafe_allow_html=True)
 
 # Toggle for Auto-Calculation
-col_toggle, col_info = st.columns([1, 3])
-with col_toggle:
-    # If checked, math happens automatically. If unchecked, user can edit LPD manually.
-    auto_calc = st.checkbox("Auto-calculate LPD?", value=True, help="Uncheck this to manually edit the Milk Poured column.")
+auto_calc = st.checkbox("Auto-calculate LPD?", value=True, key="autocalc")
 
-# --- INITIALIZATION SECTION ---
+# Initialize Data
 if 'milk_data' not in st.session_state:
     st.session_state.milk_data = pd.DataFrame(
         {
@@ -91,8 +105,7 @@ if 'milk_data' not in st.session_state:
         }
     )
 
-# Configure column settings
-# Note: We removed disabled=True from Milk Poured so you can edit it if auto_calc is off
+# Configure Columns
 column_config = {
     "Date": st.column_config.DateColumn("Date", default=date.today(), format="DD-MM-YYYY"),
     "Morning (Ltrs)": st.column_config.NumberColumn("Morning (Ltrs)", min_value=0, step=0.1, format="%.1f"),
@@ -104,7 +117,7 @@ column_config = {
     "Visitor Sign": st.column_config.TextColumn("Visitor Sign"),
 }
 
-# Display the Data Editor
+# Editor
 edited_df = st.data_editor(
     st.session_state.milk_data,
     column_config=column_config,
@@ -114,66 +127,71 @@ edited_df = st.data_editor(
     key="editor"
 )
 
-# --- CALCULATION LOGIC ---
+# Calculation Logic
 if not edited_df.equals(st.session_state.milk_data):
-    # 1. Sanitize numbers (replace N/A with 0)
     numeric_cols = ["Morning (Ltrs)", "Evening (Ltrs)", "Home Cons. (Ltrs)", "Calf Cons. (Ltrs)", "Milk Poured (LPD)"]
     edited_df[numeric_cols] = edited_df[numeric_cols].fillna(0.0)
     
-    # 2. Only run calculation if the Checkbox is True
     if auto_calc:
         total_prod = edited_df["Morning (Ltrs)"] + edited_df["Evening (Ltrs)"]
         total_cons = edited_df["Home Cons. (Ltrs)"] + edited_df["Calf Cons. (Ltrs)"]
         edited_df["Milk Poured (LPD)"] = total_prod - total_cons
     
-    # 3. Save back to session state
     st.session_state.milk_data = edited_df
     st.rerun()
 
 # ==========================================
-# SUBMIT & DOWNLOAD SECTION
+# SUBMIT & DOWNLOAD (CLEAN FORMAT LOGIC)
 # ==========================================
-st.write("###") # Spacer
-st.markdown('<p class="section-header">3. Finalize & Submit</p>', unsafe_allow_html=True)
-
-# We use session state to remember if the form has been submitted
-if 'form_submitted' not in st.session_state:
-    st.session_state.form_submitted = False
-
-col_submit, col_download = st.columns([1, 4])
-
-with col_submit:
-    # The Submit Button
-    if st.button("✅ Submit Record", type="primary"):
-        st.session_state.form_submitted = True
-
-# Logic: Only show the Download button if Submit was clicked
-if st.session_state.form_submitted:
-    st.success("Record Finalized! You can now download the file.")
+st.write("###")
+if st.button("✅ Generate Clean Record", type="primary"):
     
     if not edited_df.empty:
-        # Prepare textual header
-        header_text = (
-            f"DAIRY EXCELLENCE INITIATIVE - MILK RECORD PROFILE\n"
-            f"Farmer: {farmer_name} | Village: {village_name} | ID: {producer_id}\n"
-            f"Cow: {cow_id} | Breed: {breed} | Calvings: {num_calvings}\n"
-            f"Feed: {feeding_method} | Qty: {qty_fed}\n"
-            f"--------------------------------------------------\n"
-        )
+        # 1. Create a Dictionary of the Profile Data (The "Questions")
+        profile_data = {
+            "Farmer Name": farmer_name,
+            "Village Name": village_name,
+            "Producer ID": producer_id,
+            "HPC Code": hpc_code,
+            "Cow ID": cow_id,
+            "Breed": breed,
+            "No. Calvings": num_calvings,
+            "Date Calving": calving_date,
+            "Cow Purchased?": is_purchased,
+            "Farm Born?": is_farm_born,
+            "Cattle Feed?": "Yes" if cattle_feed_yn else "No",
+            "Own Feed?": "Yes" if own_feed_yn else "No",
+            "Qty Fed (Kgs)": qty_fed,
+            "Brand Name": brand_name,
+            "Grazing Method": grazing_choice,
+            "Green Fodder?": "Yes" if green_fodder_yn else "No",
+            "Dry Fodder?": "Yes" if dry_fodder_yn else "No",
+            "24/7 Water?": "Yes" if water_247_yn else "No",
+            "Silage?": "Yes" if silage_yn else "No",
+            "Calcium?": "Yes" if calcium_yn else "No",
+            "Mineral Mix?": "Yes" if mineral_mix_yn else "No",
+            "UMMB?": "Yes" if ummb_yn else "No"
+        }
+
+        # 2. Merge Profile Data into every row of the Table Data
+        # We create a new dataframe for export
+        export_df = edited_df.copy()
         
-        csv_buffer = io.StringIO()
-        csv_buffer.write(header_text)
-        edited_df.to_csv(csv_buffer, index=False)
+        # Add profile columns to the left side
+        for col_name, value in reversed(profile_data.items()):
+            export_df.insert(0, col_name, value)
+            
+        # 3. Create the clean CSV
+        csv_data = export_df.to_csv(index=False)
+        filename = f"MilkRecord_{farmer_name}_{date.today()}.csv"
+
+        st.success("File Generated Successfully!")
         
-        # The Download Button
         st.download_button(
-            label="📥 Download CSV File",
-            data=csv_buffer.getvalue(),
-            file_name=f"MilkRecord_{farmer_name}.csv",
+            label="📥 Download Clean CSV",
+            data=csv_data,
+            file_name=filename,
             mime="text/csv"
         )
     else:
-        st.warning("The table is empty. Please add data before downloading.")
-else:
-    # Optional: Show a greyed out message or nothing
-    st.info("Please fill the table and click 'Submit Record' to generate the download file.")
+        st.warning("Please add at least one row of milk data before generating the record.")
